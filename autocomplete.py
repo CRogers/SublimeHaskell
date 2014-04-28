@@ -29,12 +29,12 @@ else:
 # If true, files that have not changed will not be re-inspected.
 CHECK_MTIME = True
 
+MODULE_INSPECTOR_DIR = None
 MODULE_INSPECTOR_SOURCE_PATH = None
 MODULE_INSPECTOR_EXE_PATH = None
-MODULE_INSPECTOR_OBJ_DIR = None
+CABAL_INSPECTOR_DIR = None
 CABAL_INSPECTOR_SOURCE_PATH = None
 CABAL_INSPECTOR_EXE_PATH = None
-CABAL_INSPECTOR_OBJ_DIR = None
 INSPECTOR_ENABLED = False
 INSPECTOR_RUNNING = False
 
@@ -891,35 +891,40 @@ class InspectorAgent(threading.Thread):
     CABALMSG = 'Compiling Haskell CabalInspector'
     MODULEMSG = 'Compiling Haskell ModuleInspector'
 
+    def yay(self, s, msg, args):
+        exit_code, out, err = call_and_wait(args)
+        if exit_code != 0:
+            s.fail()
+            error_msg = msg + u"\n{0}".format(err)
+            wait_for_window(lambda w: self.show_errors(w, error_msg))
+            # Continue anyway
+
     def run(self):
         # Compile the CabalInspector:
         with status_message(InspectorAgent.CABALMSG) as s:
-
-            exit_code, out, err = call_and_wait(['ghc',
-                '--make', CABAL_INSPECTOR_SOURCE_PATH,
-                '-o', CABAL_INSPECTOR_EXE_PATH,
-                '-outputdir', CABAL_INSPECTOR_OBJ_DIR])
-
-            if exit_code != 0:
-                s.fail()
-                error_msg = u"SublimeHaskell: Failed to compile CabalInspector\n{0}".format(err)
-                wait_for_window(lambda w: self.show_errors(w, error_msg))
-                # Continue anyway
+            olddir = os.getcwd()
+            os.chdir(CABAL_INSPECTOR_DIR)
+            log('Creating CabalInspector sandbox')
+            self.yay(s, u"SublimeHaskell: Failed to install sandbox CabalInspector", ['cabal','sandbox','init'])
+            log('Install CabalInspector dependencies')
+            self.yay(s, u"SublimeHaskell: Failed to install dependencies for CabalInspector", ['cabal','install','--only-dependencies'])
+            log('Compiling CabalInspector')
+            self.yay(s, u"SublimeHaskell: Failed to compile CabalInspector", ['cabal','build'])
+            log("CabalInspector compiled")
+            os.chdir(olddir)
 
         # Compile the ModuleInspector:
         with status_message(InspectorAgent.MODULEMSG) as s:
-
-            exit_code, out, err = call_and_wait(['ghc',
-                '--make', MODULE_INSPECTOR_SOURCE_PATH,
-                '-package', 'ghc',
-                '-o', MODULE_INSPECTOR_EXE_PATH,
-                '-outputdir', MODULE_INSPECTOR_OBJ_DIR])
-
-            if exit_code != 0:
-                s.fail()
-                error_msg = u"SublimeHaskell: Failed to compile ModuleInspector\n{0}".format(err)
-                wait_for_window(lambda w: self.show_errors(w, error_msg))
-                return
+            olddir = os.getcwd()
+            os.chdir(MODULE_INSPECTOR_DIR)
+            log('Creating ModuleInspector sandbox')
+            self.yay(s, u"SublimeHaskell: Failed to install sandbox ModuleInspector", ['cabal','sandbox','init'])
+            log('Install ModuleInspector dependencies')
+            self.yay(s, u"SublimeHaskell: Failed to install dependencies for ModuleInspector", ['cabal','install','--only-dependencies'])
+            log('Compiling ModuleInspector')
+            self.yay(s, u"SublimeHaskell: Failed to compile ModuleInspector", ['cabal','build'])
+            log("ModuleInspector compiled")
+            os.chdir(olddir)
 
         # For first time, inspect all open folders and files
         wait_for_window(lambda w: self.mark_all_files(w))
@@ -1314,24 +1319,25 @@ def start_inspector():
 
 
 def plugin_loaded():
+    global MODULE_INSPECTOR_DIR
     global MODULE_INSPECTOR_SOURCE_PATH
     global MODULE_INSPECTOR_EXE_PATH
-    global MODULE_INSPECTOR_OBJ_DIR
+    global CABAL_INSPECTOR_DIR
     global CABAL_INSPECTOR_SOURCE_PATH
     global CABAL_INSPECTOR_EXE_PATH
-    global CABAL_INSPECTOR_OBJ_DIR
     global INSPECTOR_ENABLED
     global INSPECTOR_RUNNING
 
     package_path = sublime_haskell_package_path()
     cache_path = sublime_haskell_cache_path()
 
-    MODULE_INSPECTOR_SOURCE_PATH = os.path.join(package_path, 'ModuleInspector.hs')
-    MODULE_INSPECTOR_EXE_PATH = os.path.join(cache_path, 'ModuleInspector')
-    MODULE_INSPECTOR_OBJ_DIR = os.path.join(cache_path, 'obj/ModuleInspector')
-    CABAL_INSPECTOR_SOURCE_PATH = os.path.join(package_path, 'CabalInspector.hs')
-    CABAL_INSPECTOR_EXE_PATH = os.path.join(cache_path, 'CabalInspector')
-    CABAL_INSPECTOR_OBJ_DIR = os.path.join(cache_path, 'obj/CabalInspector')
+    MODULE_INSPECTOR_DIR = os.path.join(package_path, 'ModuleInspector')
+    CABAL_INSPECTOR_DIR = os.path.join(package_path, 'CabalInspector')
+
+    MODULE_INSPECTOR_SOURCE_PATH = os.path.join(MODULE_INSPECTOR_DIR, 'ModuleInspector.hs')
+    MODULE_INSPECTOR_EXE_PATH = os.path.join(MODULE_INSPECTOR_DIR, 'dist', 'build', 'ModuleInspector', 'ModuleInspector')
+    CABAL_INSPECTOR_SOURCE_PATH = os.path.join(CABAL_INSPECTOR_DIR, 'CabalInspector.hs')
+    CABAL_INSPECTOR_EXE_PATH = os.path.join(CABAL_INSPECTOR_DIR, 'dist', 'build','CabalInspector', 'CabalInspector')
     INSPECTOR_ENABLED = get_setting('inspect_modules')
 
     if INSPECTOR_ENABLED:
