@@ -31,9 +31,11 @@ CHECK_MTIME = True
 
 MODULE_INSPECTOR_DIR = None
 MODULE_INSPECTOR_SOURCE_PATH = None
+MODULE_INSPECTOR_DIST = None
 MODULE_INSPECTOR_EXE_PATH = None
 CABAL_INSPECTOR_DIR = None
 CABAL_INSPECTOR_SOURCE_PATH = None
+CABAL_INSPECTOR_DIST = None
 CABAL_INSPECTOR_EXE_PATH = None
 INSPECTOR_ENABLED = False
 INSPECTOR_RUNNING = False
@@ -870,7 +872,9 @@ class StandardInspectorAgent(threading.Thread):
 
 std_inspector = None
 
-
+def make_folder(name):
+    if not os.path.exists(name):
+        os.makedirs(name)
 
 class InspectorAgent(threading.Thread):
     def __init__(self):
@@ -909,7 +913,8 @@ class InspectorAgent(threading.Thread):
             log('Install CabalInspector dependencies')
             self.yay(s, u"SublimeHaskell: Failed to install dependencies for CabalInspector", ['cabal','install','--only-dependencies'])
             log('Compiling CabalInspector')
-            self.yay(s, u"SublimeHaskell: Failed to compile CabalInspector", ['cabal','build'])
+            make_folder(CABAL_INSPECTOR_DIST)
+            self.yay(s, u"SublimeHaskell: Failed to compile CabalInspector", ['cabal','build','--builddir='+CABAL_INSPECTOR_DIST])
             log("CabalInspector compiled")
             os.chdir(olddir)
 
@@ -922,7 +927,8 @@ class InspectorAgent(threading.Thread):
             log('Install ModuleInspector dependencies')
             self.yay(s, u"SublimeHaskell: Failed to install dependencies for ModuleInspector", ['cabal','install','--only-dependencies'])
             log('Compiling ModuleInspector')
-            self.yay(s, u"SublimeHaskell: Failed to compile ModuleInspector", ['cabal','build'])
+            make_folder(MODULE_INSPECTOR_DIST)
+            self.yay(s, u"SublimeHaskell: Failed to compile ModuleInspector", ['cabal','build','--builddir='+MODULE_INSPECTOR_DIST])
             log("ModuleInspector compiled")
             os.chdir(olddir)
 
@@ -1066,7 +1072,7 @@ class InspectorAgent(threading.Thread):
         ghc_opts_args = [' '.join(ghc_opts)] if ghc_opts else []
 
         exit_code, stdout, stderr = call_and_wait(
-            [MODULE_INSPECTOR_EXE_PATH, filename] + ghc_opts_args, cwd = get_source_dir(filename))
+            [MODULE_INSPECTOR_EXE_PATH, filename] + ghc_opts_args)
 
         module_inspector_out = MODULE_INSPECTOR_RE.search(stdout)
 
@@ -1321,23 +1327,29 @@ def start_inspector():
 def plugin_loaded():
     global MODULE_INSPECTOR_DIR
     global MODULE_INSPECTOR_SOURCE_PATH
+    global MODULE_INSPECTOR_DIST
     global MODULE_INSPECTOR_EXE_PATH
     global CABAL_INSPECTOR_DIR
     global CABAL_INSPECTOR_SOURCE_PATH
+    global CABAL_INSPECTOR_DIST
     global CABAL_INSPECTOR_EXE_PATH
     global INSPECTOR_ENABLED
     global INSPECTOR_RUNNING
 
     package_path = sublime_haskell_package_path()
     cache_path = sublime_haskell_cache_path()
+    log("cache path: " + cache_path)
 
     MODULE_INSPECTOR_DIR = os.path.join(package_path, 'ModuleInspector')
     CABAL_INSPECTOR_DIR = os.path.join(package_path, 'CabalInspector')
 
+    MODULE_INSPECTOR_DIST = os.path.join(MODULE_INSPECTOR_DIR, 'dist')
+    CABAL_INSPECTOR_DIST = os.path.join(CABAL_INSPECTOR_DIR, 'dist')
+
     MODULE_INSPECTOR_SOURCE_PATH = os.path.join(MODULE_INSPECTOR_DIR, 'ModuleInspector.hs')
-    MODULE_INSPECTOR_EXE_PATH = os.path.join(MODULE_INSPECTOR_DIR, 'dist', 'build', 'ModuleInspector', 'ModuleInspector')
+    MODULE_INSPECTOR_EXE_PATH = os.path.join(MODULE_INSPECTOR_DIST, 'build', 'ModuleInspector', 'ModuleInspector')
     CABAL_INSPECTOR_SOURCE_PATH = os.path.join(CABAL_INSPECTOR_DIR, 'CabalInspector.hs')
-    CABAL_INSPECTOR_EXE_PATH = os.path.join(CABAL_INSPECTOR_DIR, 'dist', 'build','CabalInspector', 'CabalInspector')
+    CABAL_INSPECTOR_EXE_PATH = os.path.join(CABAL_INSPECTOR_DIST, 'build','CabalInspector', 'CabalInspector')
     INSPECTOR_ENABLED = get_setting('inspect_modules')
 
     if INSPECTOR_ENABLED:
