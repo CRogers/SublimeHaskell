@@ -117,13 +117,17 @@ def wait_for_chain_to_complete(view, cabal_project_dir, msg, cmds, on_done):
     """Chains several commands, wait for them to complete, then parse and display
     the resulting errors."""
 
+    log(cmds)
     # First hide error panel to show that something is going on
     sublime.set_timeout(lambda: hide_output(view), 0)
 
     # run and wait commands, fail on first fail
     for cmd in cmds:
+        joined = "'" + "' '".join(cmd) + "'"
+        realcmd = ['nix-shell', '--pure', '--command', joined]
+        log(realcmd)
         exit_code, stdout, stderr = call_and_wait(
-            cmd,
+            realcmd,
             cwd=cabal_project_dir)
         if exit_code != 0:
             break
